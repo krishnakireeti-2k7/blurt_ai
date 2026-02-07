@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392445057551",
+    "project_id": "blurtai-e8944",
+    "storage_bucket": "blurtai-e8944.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392445057551:android:c9ccc390ef6ddc7214a17a",
+        "android_client_info": {
+          "package_name": "com.example.blurt_ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDIEzjsDJhFn_DzcbLZDp9AAitoAJr1b8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
