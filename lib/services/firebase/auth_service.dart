@@ -3,19 +3,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 
 class AuthService {
-  static final _auth = FirebaseAuth.instance;
-
-  // ✅ Create ONE instance
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
-  /// 1️⃣ Silent anonymous sign-in
   static Future<User?> signInAnonymouslyIfNeeded() async {
-    final current = _auth.currentUser;
-    if (current != null) {
-      debugPrint(
-        '👤 Existing user: ${current.uid} (anon=${current.isAnonymous})',
-      );
-      return current;
+    final user = _auth.currentUser;
+    if (user != null) {
+      debugPrint('👤 Existing user: ${user.uid} (anon=${user.isAnonymous})');
+      return user;
     }
 
     final cred = await _auth.signInAnonymously();
@@ -23,21 +18,21 @@ class AuthService {
     return cred.user;
   }
 
-  /// 2️⃣ Google Sign-In + LINK
   static Future<User?> signInWithGoogleAndLink() async {
     final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null; // user cancelled
+    if (googleUser == null) return null;
 
     final googleAuth = await googleUser.authentication;
+
     final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
+      accessToken: googleAuth.accessToken,
     );
 
-    final user = _auth.currentUser;
+    final currentUser = _auth.currentUser;
 
-    if (user != null && user.isAnonymous) {
-      final result = await user.linkWithCredential(credential);
+    if (currentUser != null && currentUser.isAnonymous) {
+      final result = await currentUser.linkWithCredential(credential);
       debugPrint('🔗 Linked anon → Google: ${result.user?.uid}');
       return result.user;
     }
