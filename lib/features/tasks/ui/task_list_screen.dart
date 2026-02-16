@@ -6,7 +6,7 @@ class TaskListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: Text('Firebase setup incoming 🚀')),
+      body: Center(child: Text('Firebase setup incoming ')),
     );
   }
 }

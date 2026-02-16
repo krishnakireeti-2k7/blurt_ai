@@ -7,40 +7,13 @@ class SignInScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F1A), // deep dark blue/black
+      backgroundColor: const Color(0xFF0B0F1A),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // TOP: App name
-              const SizedBox(height: 80),
-              Column(
-                children: const [
-                  Text(
-                    'Blurt AI',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Turn thoughts into action',
-                    style: TextStyle(fontSize: 14, color: Colors.white60),
-                  ),
-                ],
-              ),
-
-              // MIDDLE: Google sign-in button
-              _GoogleSignInButton(),
-
-              // BOTTOM: Spacer for balance
-              const SizedBox(height: 80),
-            ],
+            children: const [_Header(), _GoogleButton(), SizedBox(height: 80)],
           ),
         ),
       ),
@@ -48,7 +21,38 @@ class SignInScreen extends StatelessWidget {
   }
 }
 
-class _GoogleSignInButton extends StatelessWidget {
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 80),
+      child: Column(
+        children: [
+          Text(
+            'Blurt AI',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.4,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Turn thoughts into action',
+            style: TextStyle(fontSize: 14, color: Colors.white60),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoogleButton extends StatelessWidget {
+  const _GoogleButton();
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -66,7 +70,7 @@ class _GoogleSignInButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          elevation: 8,
+          elevation: 6,
           shadowColor: Colors.white24,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -75,10 +79,7 @@ class _GoogleSignInButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.network(
-              'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png',
-              height: 22,
-            ),
+            Image.asset('assets/images/google_logo.png', height: 22),
             const SizedBox(width: 12),
             const Text(
               'Continue with Google',
