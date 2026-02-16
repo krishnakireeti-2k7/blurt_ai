@@ -1,5 +1,6 @@
-import 'package:blurt_ai/features/tasks/models/task_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:blurt_ai/features/tasks/models/task_repository.dart';
+import 'package:blurt_ai/services/speech/speech_service.dart';
 import '../models/task_model.dart';
 
 class TaskListScreen extends StatefulWidget {
@@ -11,7 +12,32 @@ class TaskListScreen extends StatefulWidget {
 
 class _TaskListScreenState extends State<TaskListScreen> {
   final TaskRepository _repository = TaskRepository();
+  final SpeechService _speechService = SpeechService();
   final TextEditingController _controller = TextEditingController();
+
+  bool _isListening = false;
+  String _tempSpeech = '';
+
+  Future<void> _toggleListening() async {
+    if (!_isListening) {
+      setState(() => _isListening = true);
+
+      await _speechService.startListening(
+        onResult: (text, isFinal) {
+          if (isFinal) {
+            _tempSpeech = text;
+          }
+        },
+      );
+    } else {
+      await _speechService.stopListening();
+
+      setState(() {
+        _isListening = false;
+        _controller.text = _tempSpeech;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +64,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
               controller: _controller,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: 'Type a task...',
+                hintText: 'Speak or type a task...',
                 hintStyle: TextStyle(color: Colors.white54),
                 filled: true,
                 fillColor: Color(0xFF1A1F2E),
@@ -49,7 +75,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(
+              _isListening ? Icons.mic : Icons.mic_none,
+              color: _isListening ? Colors.red : Colors.white,
+            ),
+            onPressed: _toggleListening,
+          ),
           IconButton(
             icon: const Icon(Icons.send, color: Colors.white),
             onPressed: () async {
