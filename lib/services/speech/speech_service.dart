@@ -4,25 +4,37 @@ class SpeechService {
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _isInitialized = false;
-  bool get isListening => _speech.isListening;
+  Function()? _onStoppedCallback;
 
-  Future<void> init() async {
+  Future<void> init({required Function() onStopped}) async {
     if (!_isInitialized) {
-      _isInitialized = await _speech.initialize();
+      _isInitialized = await _speech.initialize(
+        onStatus: (status) {
+          if (status == "notListening") {
+            _onStoppedCallback?.call();
+          }
+        },
+        onError: (error) {
+          print("Speech error: $error");
+        },
+      );
     }
+
+    _onStoppedCallback = onStopped;
   }
 
   Future<void> startListening({
     required Function(String text, bool isFinal) onResult,
+    required Function() onStopped,
   }) async {
-    await init();
+    await init(onStopped: onStopped);
 
     if (!_speech.isListening) {
       await _speech.listen(
         listenMode: stt.ListenMode.dictation,
-        partialResults: true,
+        partialResults: false,
         listenFor: const Duration(minutes: 5),
-        pauseFor: const Duration(minutes: 5),
+        pauseFor: const Duration(seconds: 2),
         onResult: (result) {
           onResult(result.recognizedWords, result.finalResult);
         },

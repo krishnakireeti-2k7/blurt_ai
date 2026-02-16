@@ -17,6 +17,22 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
   bool _isListening = false;
   String _tempSpeech = '';
+  void _handleSpeechCompletion() {
+    setState(() {
+      _isListening = false;
+
+      if (_tempSpeech.trim().isNotEmpty) {
+        final existing = _controller.text.trim();
+
+        if (existing.isEmpty) {
+          _controller.text = _tempSpeech.trim();
+        } else {
+          _controller.text = "$existing ${_tempSpeech.trim()}";
+        }
+      }
+    });
+  }
+
 
   Future<void> _toggleListening() async {
     if (!_isListening) {
@@ -28,14 +44,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
             _tempSpeech = text;
           }
         },
+        onStopped: () {
+          _handleSpeechCompletion();
+        },
       );
     } else {
       await _speechService.stopListening();
-
-      setState(() {
-        _isListening = false;
-        _controller.text = _tempSpeech;
-      });
+      _handleSpeechCompletion();
     }
   }
 
@@ -60,29 +75,49 @@ class _TaskListScreenState extends State<TaskListScreen> {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Speak or type a task...',
-                hintStyle: TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Color(0xFF1A1F2E),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
+            child:
+                _isListening
+                    ? const _ListeningIndicator()
+                    : TextField(
+                      controller: _controller,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Speak or type a task...',
+                        hintStyle: TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: Color(0xFF1A1F2E),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(
-              _isListening ? Icons.mic : Icons.mic_none,
-              color: _isListening ? Colors.red : Colors.white,
+
+          // 🔴 Animated Mic Button
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color:
+                  _isListening
+                      ? Colors.red.withOpacity(0.2)
+                      : Colors.transparent,
             ),
-            onPressed: _toggleListening,
+            child: IconButton(
+              icon: Icon(
+                Icons.mic,
+                color: _isListening ? Colors.red : Colors.white,
+              ),
+              onPressed: _toggleListening,
+            ),
           ),
+
+          const SizedBox(width: 8),
+
           IconButton(
             icon: const Icon(Icons.send, color: Colors.white),
             onPressed: () async {
@@ -146,6 +181,21 @@ class _TaskListScreenState extends State<TaskListScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _ListeningIndicator extends StatelessWidget {
+  const _ListeningIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Icon(Icons.graphic_eq, color: Colors.red, size: 32),
+        SizedBox(width: 8),
+        Text("Listening...", style: TextStyle(color: Colors.white70)),
+      ],
     );
   }
 }
