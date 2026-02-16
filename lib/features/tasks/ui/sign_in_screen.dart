@@ -60,12 +60,10 @@ class _GoogleButton extends StatelessWidget {
       height: 52,
       child: ElevatedButton(
         onPressed: () async {
-          final user = await AuthService.signInWithGoogleAndLink();
-          if (user != null && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Signed in with Google')),
-            );
-          }
+          await AuthService.signInWithGoogleAndLink();
+          // No navigation
+          // No SnackBar
+          // App will auto-redirect via StreamBuilder in app.dart
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
