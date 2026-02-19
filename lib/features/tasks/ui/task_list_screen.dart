@@ -16,42 +16,52 @@ class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _controller = TextEditingController();
 
   bool _isListening = false;
-  String _tempSpeech = '';
+  String _pendingSpeech = '';
+
   void _handleSpeechCompletion() {
+    if (!mounted) return;
+
+    final spokenText = _pendingSpeech.trim();
     setState(() {
       _isListening = false;
 
-      if (_tempSpeech.trim().isNotEmpty) {
+      if (spokenText.isNotEmpty) {
         final existing = _controller.text.trim();
-
-        if (existing.isEmpty) {
-          _controller.text = _tempSpeech.trim();
-        } else {
-          _controller.text = "$existing ${_tempSpeech.trim()}";
-        }
+        _controller.text =
+            existing.isEmpty ? spokenText : "$existing $spokenText";
       }
     });
-  }
 
+    _pendingSpeech = '';
+  }
 
   Future<void> _toggleListening() async {
     if (!_isListening) {
+      _pendingSpeech = '';
       setState(() => _isListening = true);
 
       await _speechService.startListening(
-        onResult: (text, isFinal) {
-          if (isFinal) {
-            _tempSpeech = text;
-          }
+        onResult: (text, _) {
+          final trimmed = text.trim();
+          if (trimmed.isEmpty) return;
+          _pendingSpeech = trimmed;
         },
-        onStopped: () {
-          _handleSpeechCompletion();
+        onStopped: _handleSpeechCompletion,
+        onListeningStateChanged: (isListening) {
+          if (!mounted) return;
+          setState(() => _isListening = isListening);
         },
       );
     } else {
       await _speechService.stopListening();
-      _handleSpeechCompletion();
     }
+  }
+
+  @override
+  void dispose() {
+    _speechService.stopListening();
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -64,62 +74,60 @@ class _TaskListScreenState extends State<TaskListScreen> {
         title: const Text('Your Tasks', style: TextStyle(color: Colors.white)),
       ),
       body: Column(
-        children: [_buildInputField(), Expanded(child: _buildTaskList())],
+        children: [Expanded(child: _buildTaskList()), _buildBottomInputBar()],
       ),
     );
   }
 
-  Widget _buildInputField() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+  // ------------------------
+  // Bottom Input Bar
+  // ------------------------
+
+  Widget _buildBottomInputBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0B0F1A),
+        border: Border(top: BorderSide(color: Colors.white10)),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child:
-                _isListening
-                    ? const _ListeningIndicator()
-                    : TextField(
-                      controller: _controller,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: 'Speak or type a task...',
-                        hintStyle: TextStyle(color: Colors.white54),
-                        filled: true,
-                        fillColor: Color(0xFF1A1F2E),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(12)),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-          ),
-          const SizedBox(width: 8),
-
-          // 🔴 Animated Mic Button
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color:
-                  _isListening
-                      ? Colors.red.withOpacity(0.2)
-                      : Colors.transparent,
-            ),
-            child: IconButton(
-              icon: Icon(
-                Icons.mic,
-                color: _isListening ? Colors.red : Colors.white,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1F2E),
+                borderRadius: BorderRadius.circular(20),
               ),
-              onPressed: _toggleListening,
+              child: TextField(
+                controller: _controller,
+                style: const TextStyle(color: Colors.white),
+                maxLines: null,
+                minLines: 1,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  hintText: 'Blurt your tasks...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: InputBorder.none,
+                ),
+              ),
             ),
           ),
-
           const SizedBox(width: 8),
 
+          // Mic
           IconButton(
-            icon: const Icon(Icons.send, color: Colors.white),
+            icon: Icon(
+              Icons.mic,
+              color: _isListening ? Colors.red : Colors.white,
+            ),
+            onPressed: _toggleListening,
+          ),
+
+          // Send
+          IconButton(
+            icon: const Icon(Icons.arrow_upward, color: Colors.white),
             onPressed: () async {
               if (_controller.text.trim().isEmpty) return;
 
@@ -131,6 +139,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
     );
   }
+
+  // ------------------------
+  // Task List
+  // ------------------------
 
   Widget _buildTaskList() {
     return StreamBuilder<List<TaskModel>>(
@@ -152,50 +164,50 @@ class _TaskListScreenState extends State<TaskListScreen> {
         }
 
         return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           itemCount: tasks.length,
           itemBuilder: (context, index) {
             final task = tasks[index];
 
-            return ListTile(
-              title: Text(
-                task.parsedTaskText,
-                style: TextStyle(
-                  color: Colors.white,
-                  decoration:
-                      task.completed ? TextDecoration.lineThrough : null,
+            return GestureDetector(
+              onLongPress: () async {
+                await _repository.deleteTask(task.id);
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1F2E),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ),
-              leading: Checkbox(
-                value: task.completed,
-                onChanged: (_) async {
-                  await _repository.toggleTask(task.id, task.completed);
-                },
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () async {
-                  await _repository.deleteTask(task.id);
-                },
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: task.completed,
+                      onChanged: (_) async {
+                        await _repository.toggleTask(task.id, task.completed);
+                      },
+                    ),
+                    Expanded(
+                      child: Text(
+                        task.parsedTaskText,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          decoration:
+                              task.completed
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
-    );
-  }
-}
-
-class _ListeningIndicator extends StatelessWidget {
-  const _ListeningIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: const [
-        Icon(Icons.graphic_eq, color: Colors.red, size: 32),
-        SizedBox(width: 8),
-        Text("Listening...", style: TextStyle(color: Colors.white70)),
-      ],
     );
   }
 }
