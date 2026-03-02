@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:blurt_ai/features/tasks/models/task_repository.dart';
 import 'package:blurt_ai/services/speech/speech_service.dart';
+import 'package:blurt_ai/services/ai/ai_task_service.dart';
 import '../models/task_model.dart';
 
 class TaskListScreen extends StatefulWidget {
@@ -14,9 +15,9 @@ class _TaskListScreenState extends State<TaskListScreen>
     with TickerProviderStateMixin {
   final TaskRepository _repository = TaskRepository();
   final SpeechService _speechService = SpeechService();
+  final AiTaskService _aiService = AiTaskService();
   final TextEditingController _controller = TextEditingController();
 
-  // AnimatedList controls
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   final List<TaskModel> _displayedTasks = [];
 
@@ -33,13 +34,10 @@ class _TaskListScreenState extends State<TaskListScreen>
     );
   }
 
-  /// Syncs the stream data with the AnimatedList state safely after the build frame
   void _handleTaskUpdate(List<TaskModel> newTasks) {
-    // We use postFrameCallback to avoid the "setState() called during build" error
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      // 1. Handle Additions
       for (var i = 0; i < newTasks.length; i++) {
         final task = newTasks[i];
         if (!_displayedTasks.any((t) => t.id == task.id)) {
@@ -51,7 +49,6 @@ class _TaskListScreenState extends State<TaskListScreen>
         }
       }
 
-      // 2. Handle Deletions
       final idsToRemove =
           _displayedTasks
               .where((t) => !newTasks.any((nt) => nt.id == t.id))
@@ -70,7 +67,6 @@ class _TaskListScreenState extends State<TaskListScreen>
         }
       }
 
-      // 3. Update status (Strike-through)
       for (var i = 0; i < _displayedTasks.length; i++) {
         final updatedTask = newTasks.firstWhere(
           (t) => t.id == _displayedTasks[i].id,
@@ -125,6 +121,23 @@ class _TaskListScreenState extends State<TaskListScreen>
     super.dispose();
   }
 
+  Future<void> _processWithAI() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    try {
+      final tasks = await _aiService.extractTasks(text);
+
+      for (final task in tasks) {
+        await _repository.addTask(task['title']);
+      }
+
+      _controller.clear();
+    } catch (e) {
+      print("AI processing failed: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,7 +151,6 @@ class _TaskListScreenState extends State<TaskListScreen>
             color: Colors.white,
             fontSize: 28,
             fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
           ),
         ),
       ),
@@ -161,7 +173,6 @@ class _TaskListScreenState extends State<TaskListScreen>
 
         final newTasks = snapshot.data!;
 
-        // 🔥 FIRST LOAD FIX
         if (_displayedTasks.isEmpty) {
           _displayedTasks.addAll(newTasks);
 
@@ -175,11 +186,10 @@ class _TaskListScreenState extends State<TaskListScreen>
           );
         }
 
-        // After first load → handle diffs
         _handleTaskUpdate(newTasks);
 
         if (_displayedTasks.isEmpty) {
-          return _buildEmptyState();
+          return const Center(child: Text("No tasks yet"));
         }
 
         return AnimatedList(
@@ -197,213 +207,47 @@ class _TaskListScreenState extends State<TaskListScreen>
     );
   }
 
-
   Widget _buildTaskItem(TaskModel task, Animation<double> animation) {
     return FadeTransition(
       opacity: animation,
       child: SizeTransition(
         sizeFactor: animation,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141A2A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.06),
-              width: 1,
+        child: ListTile(
+          title: Text(
+            task.parsedTaskText,
+            style: TextStyle(
+              color: task.completed ? Colors.grey : Colors.white,
+              decoration:
+                  task.completed
+                      ? TextDecoration.lineThrough
+                      : TextDecoration.none,
             ),
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _repository.toggleTask(task.id, task.completed),
-              onLongPress: () => _repository.deleteTask(task.id),
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    _buildAnimatedCheckbox(task),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        task.parsedTaskText,
-                        style: TextStyle(
-                          color:
-                              task.completed
-                                  ? Colors.white.withValues(alpha: 0.4)
-                                  : Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          decoration:
-                              task.completed
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
-                          decorationColor: Colors.white.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          onTap: () => _repository.toggleTask(task.id, task.completed),
+          onLongPress: () => _repository.deleteTask(task.id),
         ),
       ),
-    );
-  }
-
-  Widget _buildAnimatedCheckbox(TaskModel task) {
-    return Container(
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color:
-              task.completed
-                  ? Colors.blueAccent
-                  : Colors.white.withValues(alpha: 0.3),
-          width: 2,
-        ),
-        color:
-            task.completed
-                ? Colors.blueAccent.withValues(alpha: 0.2)
-                : Colors.transparent,
-      ),
-      child:
-          task.completed
-              ? const Icon(Icons.check, size: 16, color: Colors.blueAccent)
-              : null,
     );
   }
 
   Widget _buildBottomInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0E1A),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-      ),
+      padding: const EdgeInsets.all(16),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141A2A),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: TextField(
-                controller: _controller,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-                maxLines: null,
-                decoration: InputDecoration(
-                  hintText: 'Blurt your tasks...',
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.35),
-                  ),
-                  border: InputBorder.none,
-                ),
+            child: TextField(
+              controller: _controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "Blurt your tasks...",
+                hintStyle: TextStyle(color: Colors.white54),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          _buildMicButton(),
           const SizedBox(width: 8),
-          _buildSendButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMicButton() {
-    return AnimatedBuilder(
-      animation: _micPulseController,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow:
-                _isListening
-                    ? [
-                      BoxShadow(
-                        color: Colors.redAccent.withValues(alpha: 0.3),
-                        blurRadius: 12 * _micPulseController.value,
-                      ),
-                    ]
-                    : [],
-          ),
-          child: InkWell(
-            onTap: _toggleListening,
-            customBorder: const CircleBorder(),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color:
-                    _isListening
-                        ? Colors.redAccent.withValues(alpha: 0.8)
-                        : const Color(0xFF1F2639),
-              ),
-              child: Icon(
-                Icons.mic,
-                color: _isListening ? Colors.white : Colors.white70,
-                size: 20,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSendButton() {
-    return InkWell(
-      onTap: () async {
-        if (_controller.text.trim().isEmpty) return;
-        await _repository.addTask(_controller.text.trim());
-        _controller.clear();
-      },
-      customBorder: const CircleBorder(),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [
-              Colors.blueAccent.withValues(alpha: 0.8),
-              Colors.blue.withValues(alpha: 0.6),
-            ],
-          ),
-        ),
-        child: const Icon(Icons.arrow_upward, color: Colors.white, size: 20),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No tasks yet',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-          ),
+          IconButton(icon: const Icon(Icons.mic), onPressed: _toggleListening),
+          IconButton(icon: const Icon(Icons.send), onPressed: _processWithAI),
         ],
       ),
     );
